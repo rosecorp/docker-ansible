@@ -1,0 +1,45 @@
+---
+- hosts: sb
+  become: yes
+  gather_facts: no
+
+  tasks:
+  - name: add repo for java 8
+    apt_repository: repo='ppa:webupd8team/java' state=present
+
+  - name: set licence selected
+    shell: /bin/echo debconf shared/accepted-oracle-license-v1-1 select true | /usr/bin/debconf-set-selections
+    become: yes
+
+  - name: set licence seen
+    shell: /bin/echo debconf shared/accepted-oracle-license-v1-1 seen true | /usr/bin/debconf-set-selections
+    become: yes
+
+  - name: install java 8
+    apt: name=oracle-java8-installer state=latest update-cache=yes force=yes
+    become: yes
+
+  - name: install maven (and other packages if needed)
+    become: yes
+    apt: pkg={{ item }} state=latest update_cache=yes cache_valid_time=3600
+    with_items:
+      - maven
+
+  - name: install git
+    apt: name=git state=installed update_cache=yes
+
+  - name: update spring-boot application
+    git:
+        repo: https://github.com/spring-guides/gs-spring-boot-docker.git
+        dest: /home/vagrant/spring-boot
+        version: master
+
+  - name: Build spring-boot app image
+    shell: mvn package docker:build
+    become: yes
+    args:
+      chdir: /home/vagrant/spring-boot/complete
+
+  - name: Start spring-boot image
+    command: docker run -p 8080:8080 -t springio/gs-spring-boot-docker
+
